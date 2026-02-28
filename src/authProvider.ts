@@ -1,5 +1,5 @@
 /**
- * PARCA - Authentication Provider
+ * ARCA - Authentication Provider
  * Manages authentication tokens for Git providers, using VS Code's auth API when available.
  */
 import * as vscode from 'vscode';
@@ -25,7 +25,7 @@ export class AuthProvider {
         }
 
         // Fallback to environment variables
-        return process.env.GITHUB_TOKEN || process.env.PARCA_TOKEN;
+        return process.env.GITHUB_TOKEN || process.env.ARCA_TOKEN;
     }
 
     /**
@@ -33,7 +33,7 @@ export class AuthProvider {
      * Uses environment variables (VS Code doesn't have built-in Azure DevOps auth).
      */
     static async getAzureToken(): Promise<string | undefined> {
-        return process.env.AZURE_DEVOPS_PAT || process.env.PARCA_TOKEN;
+        return process.env.AZURE_DEVOPS_PAT || process.env.ARCA_TOKEN;
     }
 
     /**

@@ -3,24 +3,17 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 import { AssetResolver } from '../src/assetResolver';
-import { GitProvider } from '../src/gitProvider';
-import { CacheManager } from '../src/cacheManager';
-import { ConfigLoader } from '../src/configLoader';
 
-// Mock GitProvider to avoid network calls
-class MockGitProvider extends GitProvider {
-    constructor() {
-        super({ provider: 'github', repoUrl: 'https://github.com/test/repo' });
-    }
+describe('Baseline Integration Test (CLI-based)', () => {
+  let testDir: string;
+  let sourceDir: string;
+  let resolver: AssetResolver;
 
-    async resolveRef(ref: string): Promise<string> {
-        return 'mock-sha-123';
-    }
+  beforeEach(() => {
+    testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-test-'));
+    sourceDir = fs.mkdtempSync(path.join(os.tmpdir(), 'arca-source-'));
 
-    async fetchFile(filePath: string, ref: string): Promise<{ content: string; sha: string }> {
-        if (filePath === 'parca-manifest.yaml') {
-            return {
-                content: `
+    fs.writeFileSync(path.join(sourceDir, 'arca-manifest.yaml'), `
 schema: 1.0
 assets:
   test-asset:
@@ -29,77 +22,77 @@ assets:
     versions:
       1.0.0:
         path: "prompts/test.md"
-`,
-                sha: 'manifest-sha'
-            };
-        }
-        if (filePath === 'prompts/test.md') {
-            return {
-                content: '# Hello Test',
-                sha: 'file-sha'
-            };
-        }
-        throw new Error(`File not found: ${filePath}`);
-    }
-}
-
-describe('Baseline Integration Test', () => {
-    let testDir: string;
-    let cacheDir: string;
-    let resolver: AssetResolver;
-
-    beforeEach(() => {
-        testDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parca-test-'));
-        cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parca-cache-'));
-        
-        // Setup initial config
-        const configPath = path.join(testDir, '.parca-assets.yaml');
-        fs.writeFileSync(configPath, `
-schema: 1.0
-sources:
-  test-source:
-    type: git
-    provider: github
-    url: "https://github.com/test/repo"
-assets: []
+  test-skill:
+    kind: skill
+    description: "Test skill"
+    versions:
+      1.0.0:
+        path: "skills/test-skill"
 `, 'utf-8');
 
-        resolver = new AssetResolver(testDir);
-        // Inject mock cache and bypass git provider creation
-        (resolver as any).cacheManager = new CacheManager(cacheDir);
-        (resolver as any).createGitProvider = async () => new MockGitProvider();
-    });
+    fs.mkdirSync(path.join(sourceDir, 'prompts'), { recursive: true });
+    fs.writeFileSync(path.join(sourceDir, 'prompts', 'test.md'), '# Hello Test');
 
-    afterEach(() => {
-        fs.rmSync(testDir, { recursive: true, force: true });
-        fs.rmSync(cacheDir, { recursive: true, force: true });
-    });
+    fs.mkdirSync(path.join(sourceDir, 'skills', 'test-skill'), { recursive: true });
+    fs.writeFileSync(path.join(sourceDir, 'skills', 'test-skill', 'SKILL.md'), '# Test Skill Content');
+    fs.writeFileSync(path.join(sourceDir, 'skills', 'test-skill', 'helper.js'), 'console.log("hello");');
 
-    it('should install an asset correctly', async () => {
-        const result = await resolver.install('https://github.com/test/repo', 'test-asset', '1.0.0');
-        
-        if ('existing' in result) {
-            throw new Error('Asset should not already exist');
+    resolver = new AssetResolver(testDir);
+  });
+
+  afterEach(() => {
+    fs.rmSync(testDir, { recursive: true, force: true });
+    fs.rmSync(sourceDir, { recursive: true, force: true });
+  });
+
+  it('should install an asset correctly via CLI', async () => {
+    console.log('--- TEST: install asset ---');
+    await resolver.install(sourceDir, 'test-asset', '1.0.0');
+    const mappingPath = path.join(testDir, '.github', 'prompts', 'test-asset.prompt.md');
+    assert.ok(fs.existsSync(mappingPath), `Mapping path should exist: ${mappingPath}`);
+    assert.strictEqual(fs.readFileSync(mappingPath, 'utf-8').trim(), '# Hello Test');
+  });
+
+  it('should install a skill correctly via CLI', async () => {
+    console.log('--- TEST: install skill ---');
+    await resolver.install(sourceDir, 'test-skill', '1.0.0');
+
+    const skillDir = path.join(testDir, '.github', 'skills', 'test-skill');
+    console.log(`Directory check ${skillDir}: exists=`, fs.existsSync(skillDir));
+    if (fs.existsSync(skillDir) || (!fs.existsSync(skillDir) && fs.existsSync(path.dirname(skillDir)))) {
+      try {
+        const lstat = fs.lstatSync(skillDir);
+        console.log(`lstat: isSymlink=`, lstat.isSymbolicLink());
+        if (lstat.isSymbolicLink()) {
+          console.log(`readlink: `, fs.readlinkSync(skillDir));
         }
+        const files = fs.readdirSync(skillDir);
+        console.log(`files in dir: `, files);
+      } catch (e) {
+        console.log(`error stats/reading dir: `, e);
+      }
+    }
 
-        assert.strictEqual(result.id, 'test-asset');
-        assert.strictEqual(result.version, '1.0.0');
-        assert.strictEqual(result.content, '# Hello Test');
+    const mappingPath = path.join(testDir, '.github', 'skills', 'test-skill', 'SKILL.md');
+    assert.ok(fs.existsSync(mappingPath), `Skill file should exist: ${mappingPath}`);
+    assert.strictEqual(fs.readFileSync(mappingPath, 'utf-8').trim(), '# Test Skill Content');
+  });
 
-        // Verify cache
-        const cachedFilePath = path.join(cacheDir, 'test-source', 'test-asset', '1.0.0', 'test-asset.md');
-        assert.ok(fs.existsSync(cachedFilePath), 'Cache file should exist');
-        assert.strictEqual(fs.readFileSync(cachedFilePath, 'utf-8'), '# Hello Test');
+  it('should list remote assets via CLI', async () => {
+    console.log('--- TEST: list remote ---');
+    const assets = await resolver.listRemote(sourceDir);
+    console.log('Remote assets:', JSON.stringify(assets, null, 2));
+    assert.strictEqual(assets.length, 2);
+    assert.ok(assets.find(a => a.id === 'test-asset'), 'Should find test-asset');
+  });
 
-        // Verify workspace symlink
-        const mappingPath = path.join(testDir, '.github', 'prompts', 'test-asset.prompt.md');
-        assert.ok(fs.existsSync(mappingPath), 'Symlink should exist');
-        assert.ok(fs.lstatSync(mappingPath).isSymbolicLink(), 'Should be a symlink');
-        
-        // Verify .gitignore
-        const gitignorePath = path.join(testDir, '.gitignore');
-        assert.ok(fs.existsSync(gitignorePath), '.gitignore should be created');
-        const gitignoreContent = fs.readFileSync(gitignorePath, 'utf-8');
-        assert.ok(gitignoreContent.includes('.github/prompts/test-asset.prompt.md'), 'Should be gitignored');
-    });
+  it('should resolve all assets from config via CLI', async () => {
+    console.log('--- TEST: resolve all ---');
+    await resolver.install(sourceDir, 'test-asset', '1.0.0');
+    fs.rmSync(path.join(testDir, '.github'), { recursive: true, force: true });
+    const results = await resolver.resolveAll();
+    console.log('Sync results:', JSON.stringify(results, null, 2));
+    assert.strictEqual(results.length, 1);
+    assert.ok(fs.existsSync(path.join(testDir, '.github', 'prompts', 'test-asset.prompt.md')));
+  });
 });

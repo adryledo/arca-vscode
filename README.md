@@ -1,10 +1,10 @@
-# PARCA v0.0.1 - Protocol of Asset Resolution for Coding Agents
+# ARCA v0.0.1 - Protocol of Asset Resolution for Coding Agents
 
 A decentralized standard for distributing, versioning, and consuming agentic assets (prompts, skills, instructions) across coding agents and IDEs.
 
 ## 🎯 Overview
 
-PARCA enables developers to:
+ARCA enables developers to:
 - **Discover** and install reusable assets (prompts, skills, instructions) from remote sources
 - **Version** assets with SemVer support and deterministic lockfiles
 - **Integrate** seamlessly with existing IDE assistants through workspace projection
@@ -15,16 +15,16 @@ No complex tag management. No vendor lock-in. Just simple, decentralized asset d
 ## ✨ Key Features
 
 ### For Consumers
-- 🔍 **Asset Discovery**: Browse available assets with `parca list-remote <url>`
-- 📦 **One-Command Installation**: `parca install <url> <asset-id>` handles everything
-- 🔒 **Deterministic Locking**: `.parca-assets.lock` ensures reproducibility across machines and time
+- 🔍 **Asset Discovery**: Browse available assets with `arca list-remote <url>`
+- 📦 **One-Command Installation**: `arca install <url> <asset-id>` handles everything
+- 🔒 **Deterministic Locking**: `.arca-assets.lock` ensures reproducibility across machines and time
 - 🔄 **Automatic Workspace Projection**: Assets are symlinked into IDE-friendly locations (e.g., `.github/prompts/`)
 - 🛡️ **Integrity Verification**: LF-normalized SHA-256 validation across all platforms
 - 🔐 **Smart Authentication**: VS Code GitHub integration with fallback to environment variables
 
 ### For Maintainers
-- 📝 **Registry-as-Truth**: The `parca-manifest.yaml` on `main` is your source of truth—no Git tags needed
-- 🚀 **Assisted Publishing**: `PARCA: Publish Asset Version` command auto-increments versions and checkpoints old releases
+- 📝 **Registry-as-Truth**: The `arca-manifest.yaml` on `main` is your source of truth—no Git tags needed
+- 🚀 **Assisted Publishing**: `ARCA: Publish Asset Version` command auto-increments versions and checkpoints old releases
 - 📌 **Immutability Guarantees**: Previous versions are frozen at their commit SHA, protecting consumers from upstream changes
 
 ## 🏗️ Architecture
@@ -42,24 +42,24 @@ No complex tag management. No vendor lock-in. Just simple, decentralized asset d
 ```
 Consumer Project
     ↓
-[parca install <url> <asset-id>]
+[arca install <url> <asset-id>]
     ↓
-Fetch parca-manifest.yaml from Source Repo
+Fetch arca-manifest.yaml from Source Repo
     ↓
 Resolve asset to specific Git ref (commit SHA)
     ↓
-Download file to ~/.parca-cache/
+Download file to ~/.arca-cache/
     ↓
 Compute SHA-256 (LF-normalized)
     ↓
 Create symlink in workspace (e.g., .github/prompts/)
     ↓
-Update .parca-assets.lock for reproducibility
+Update .arca-assets.lock for reproducibility
 ```
 
 ## 📋 Files & Specs
 
-### Consumer Configuration (`.parca-assets.yaml`)
+### Consumer Configuration (`.arca-assets.yaml`)
 Tracks installed assets and their sources:
 
 ```yaml
@@ -76,7 +76,7 @@ assets:
     mapping: ".github/prompts/refactor.md"
 ```
 
-### Source Manifest (`parca-manifest.yaml`)
+### Source Manifest (`arca-manifest.yaml`)
 Published by maintainers to define available assets:
 
 ```yaml
@@ -93,7 +93,7 @@ assets:
         ref: "v1.2.0"
 ```
 
-### Lockfile (`.parca-assets.lock`)
+### Lockfile (`.arca-assets.lock`)
 Ensures reproducibility by pinning commit SHAs and content hashes:
 
 ```json
@@ -115,30 +115,30 @@ Ensures reproducibility by pinning commit SHAs and content hashes:
 
 ### Installation
 ```bash
-# Install the PARCA VS Code Extension from the Marketplace
+# Install the ARCA VS Code Extension from the Marketplace
 # Or use the CLI
-npm install -g parca
+npm install -g arca
 ```
 
 ### For Consumers
 ```bash
 # Discover available assets
-parca list-remote https://github.com/my-org/agent-assets
+arca list-remote https://github.com/my-org/agent-assets
 
 # Install an asset
-parca install https://github.com/my-org/agent-assets my-prompt
+arca install https://github.com/my-org/agent-assets my-prompt
 
 # List installed assets
-parca list
+arca list
 
 # Refresh all assets to latest versions
-parca resolve
+arca resolve
 ```
 
 ### For Maintainers
-1. Create a `parca-manifest.yaml` in your asset repository
+1. Create a `arca-manifest.yaml` in your asset repository
 2. Define your assets with versions and file paths
-3. Use the VS Code `PARCA: Publish Asset Version` command to:
+3. Use the VS Code `ARCA: Publish Asset Version` command to:
    - Auto-increment SemVer
    - Checkpoint previous versions at their commit SHA
    - Update the manifest
@@ -152,13 +152,13 @@ Assets are automatically projected into your workspace via symlinks:
 Consumer Repo
 ├── .github/
 │   └── prompts/
-│       └── refactor.md  → symlink → ~/.parca-cache/abc12345/refactor.md
-├── .parca-assets.yaml
-├── .parca-assets.lock
+│       └── refactor.md  → symlink → ~/.arca-cache/abc12345/refactor.md
+├── .arca-assets.yaml
+├── .arca-assets.lock
 └── .gitignore (auto-updated with symlink paths)
 ```
 
-This allows existing IDE assistants to discover and use assets without adopting PARCA directly.
+This allows existing IDE assistants to discover and use assets without adopting ARCA directly.
 
 ## 🔐 Security & Reliability
 
@@ -180,7 +180,7 @@ This allows existing IDE assistants to discover and use assets without adopting 
 ✅ **Phase 2: VS Code UX & Maintainer Tools**
 - Version picker during installation
 - Explorer view showing active assets
-- `PARCA: Publish Asset Version` command with auto-versioning and checkpointing
+- `ARCA: Publish Asset Version` command with auto-versioning and checkpointing
 - Manifest scaffolding for new source repositories
 
 🔜 **Phase 3: Robustness & Scaling**
@@ -213,7 +213,7 @@ npx tsc --noEmit
 
 ## 🎓 Philosophy
 
-PARCA is built on three principles:
+ARCA is built on three principles:
 
 1. **Decentralized**: No central registry or package manager needed—any Git repository with a manifest becomes a source
 2. **Developer-Friendly**: Minimal YAML configuration; CLI and UI handle the complexity
@@ -225,4 +225,4 @@ See the repository for licensing details.
 
 ---
 
-**Ready to manage your agentic assets with PARCA?** Start with `parca list-remote` to explore what's available! 🚀
+**Ready to manage your agentic assets with ARCA?** Start with `arca list-remote` to explore what's available! 🚀

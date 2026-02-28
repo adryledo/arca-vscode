@@ -1,18 +1,10 @@
-/**
- * PARCA - AssetResolver (Core Engine)
- * Orchestrates: manifest fetch → version resolution → file download → cache → symlink.
- */
-import * as semver from 'semver';
-import { ConfigLoader } from './configLoader';
-import { ManifestResolver } from './manifestResolver';
-import { GitProvider } from './gitProvider';
-import { CacheManager } from './cacheManager';
-import { LockfileManager } from './lockfileManager';
-import { WorkspaceMapper } from './workspaceMapper';
+import { CliRunner } from './cliRunner';
 import {
-    ParcaConfig, ParcaManifest, ParcaAssetEntry,
-    ParcaLockedAsset, ResolvedAsset, RemoteAssetInfo, AssetKind,
+    ArcaAssetEntry, ResolvedAsset, RemoteAssetInfo, AssetKind,
 } from './types';
+import * as fs from 'fs';
+import * as path from 'path';
+import * as yaml from 'js-yaml';
 
 export interface ResolveProgress {
     onAssetStart?: (id: string, version: string) => void;
@@ -21,293 +13,177 @@ export interface ResolveProgress {
 }
 
 export class AssetResolver {
-    private configLoader: ConfigLoader;
-    private manifestResolver: ManifestResolver;
-    private cacheManager: CacheManager;
-    private lockfileManager: LockfileManager;
-    private workspaceMapper: WorkspaceMapper;
+    private cli: CliRunner;
 
-    constructor(private workspaceRoot: string) {
-        this.configLoader = new ConfigLoader(workspaceRoot);
-        this.manifestResolver = new ManifestResolver();
-        this.cacheManager = new CacheManager();
-        this.lockfileManager = new LockfileManager(workspaceRoot);
-        this.workspaceMapper = new WorkspaceMapper(workspaceRoot);
+    constructor(private workspaceRoot: string, cli?: CliRunner) {
+        this.cli = cli || new CliRunner(workspaceRoot);
     }
 
     // ---- List Remote ----
 
     /** List assets from a remote source URL, optionally filtered by kind. */
     async listRemote(url: string, kindFilter?: AssetKind): Promise<RemoteAssetInfo[]> {
-        const provider = ConfigLoader.inferProvider(url);
-        const git = await this.createGitProvider(provider, url);
+        const args = ['list-remote', `"${url}"`, '--json'];
+        const result = this.cli.run(args);
 
-        // Resolve 'main' to get the current "Registry State"
-        const registryCommit = await git.resolveRef('main');
-        const manifest = await this.manifestResolver.fetchManifest(git, registryCommit);
+        let assets: RemoteAssetInfo[] = [];
+        const rawAssets = result.Assets || result.assets || result;
 
-        return this.manifestResolver.listAssets(manifest, kindFilter).map(a => ({
-            ...a,
-            resolvedCommit: registryCommit
-        }));
+        if (typeof rawAssets === 'object' && !Array.isArray(rawAssets)) {
+            assets = Object.entries(rawAssets).map(([id, a]: [string, any]) => ({
+                id,
+                kind: a.Kind || a.kind,
+                description: a.Description || a.description || '',
+                latestVersion: '',
+                versions: Object.keys(a.Versions || a.versions || {}),
+                path: a.Path || a.path || ''
+            }));
+        } else if (Array.isArray(rawAssets)) {
+            assets = rawAssets.map((a: any) => ({
+                id: a.id || a.ID,
+                kind: a.kind || a.Kind,
+                description: a.description || a.Description || '',
+                latestVersion: a.latestVersion || a.LatestVersion || '',
+                versions: a.versions || a.Versions || [],
+                path: a.path || a.Path || ''
+            }));
+        }
+
+        if (kindFilter) {
+            return assets.filter(a => a.kind === kindFilter);
+        }
+        return assets;
     }
 
     // ---- Install ----
 
     /** Install an asset from a remote source URL. Adds to config and resolves. */
-    async install(url: string, assetId: string, versionRange: string = 'latest', forceReinstall: boolean = false): Promise<ResolvedAsset | { existing: ParcaAssetEntry; selectedVersion: string }> {
-        const provider = ConfigLoader.inferProvider(url);
-        const git = await this.createGitProvider(provider, url);
-
-        // 1. Fetch manifest from 'main' (the Dynamic Registry)
-        const registryCommit = await git.resolveRef('main');
-        const manifest = await this.manifestResolver.fetchManifest(git, registryCommit);
-
-        if (!manifest.assets[assetId]) {
-            const available = Object.keys(manifest.assets).join(', ');
-            throw new Error(`Asset "${assetId}" not found in manifest. Available: ${available}`);
-        }
-
-        const assetMeta = manifest.assets[assetId];
-        const versions = Object.keys(assetMeta.versions);
-
-        // Resolve SemVer range
-        let selectedVersion: string | null = null;
-        if (versionRange === 'latest') {
-            selectedVersion = semver.maxSatisfying(versions, '*') || versions.sort().reverse()[0];
-        } else {
-            selectedVersion = semver.maxSatisfying(versions, versionRange);
-        }
-
-        if (!selectedVersion) {
-            throw new Error(`No version matching "${versionRange}" found for asset "${assetId}". Available: ${versions.join(', ')}`);
-        }
-
-        const version = selectedVersion;
-
-        // 2. Check if already installed
-        const config = this.configLoader.load();
-        const existing = config.assets.find(a => a.id === assetId);
+    async install(url: string, assetId: string, versionRange: string = 'latest', forceReinstall: boolean = false): Promise<ResolvedAsset | { existing: ArcaAssetEntry; selectedVersion: string }> {
+        const installed = this.listInstalled();
+        const existing = installed.find(a => a.id === assetId);
 
         if (existing && !forceReinstall) {
-            // Return info about existing installation for the caller to handle
-            return { existing, selectedVersion: version };
+            return { existing, selectedVersion: versionRange };
         }
 
-        // 3. Build the entry but DON'T write to config yet
-        const { config: updatedConfig, alias } = this.configLoader.ensureSource(url, provider);
-
-        // Derive default mapping based on asset kind
-        const defaultMapping = this.getDefaultMapping(assetMeta.kind, assetId);
-
-        const entry: ParcaAssetEntry = {
-            id: assetId,
-            source: alias,
-            version,
-            mapping: defaultMapping,
-        };
-
-        // 4. Resolve FIRST (fetch, cache, symlink) - if this fails, config is untouched
-        const resolved = await this.resolveAsset(entry, manifest, git, registryCommit, true);
-
-        // 5. Only persist to config after successful resolution
-        this.configLoader.addAsset(updatedConfig, entry);
-
-        return resolved;
-    }
-
-    // ---- Resolve All ----
-
-    /** Resolve all assets in .parca-assets.yaml, respecting the lockfile. */
-    async resolveAll(progress?: ResolveProgress): Promise<ResolvedAsset[]> {
-        const config = this.configLoader.load();
-        const lockfile = this.lockfileManager.load();
-        const results: ResolvedAsset[] = [];
-
-        // Group assets by source to minimize manifest fetches
-        const bySource = new Map<string, ParcaAssetEntry[]>();
-        for (const asset of config.assets) {
-            if (!bySource.has(asset.source)) {
-                bySource.set(asset.source, []);
-            }
-            bySource.get(asset.source)!.push(asset);
-        }
-
-        for (const [sourceAlias, assets] of bySource) {
-            const source = config.sources[sourceAlias];
-            if (!source) {
-                for (const a of assets) {
-                    progress?.onAssetError?.(a.id, `Source "${sourceAlias}" not defined.`);
-                }
-                continue;
-            }
-
-            const git = await this.createGitProvider(source.provider, source.url);
-
-            for (const asset of assets) {
-                progress?.onAssetStart?.(asset.id, asset.version);
-                try {
-                    // Determine which manifest revision to use
-                    // If locked, we stay on that commit to ensure reproducibility
-                    const locked = this.lockfileManager.findAsset(lockfile, asset.id, asset.source);
-                    const manifestRef = (locked && locked.version === asset.version) ? locked.commit : 'main';
-
-                    const manifest = await this.manifestResolver.fetchManifest(git, manifestRef);
-                    const resolved = await this.resolveAsset(asset, manifest, git, manifestRef);
-
-                    results.push(resolved);
-                    progress?.onAssetDone?.(asset.id, asset.version);
-                } catch (err: any) {
-                    progress?.onAssetError?.(asset.id, err.message);
-                }
-            }
-        }
-
-        return results;
-    }
-
-    // ---- List Installed ----
-
-    /** Get the list of currently installed assets from .parca-assets.yaml. */
-    listInstalled(): ParcaAssetEntry[] {
-        return this.configLoader.getInstalledAssets();
-    }
-
-    // ---- Private ----
-
-    private async resolveAsset(
-        entry: ParcaAssetEntry,
-        manifest: ParcaManifest,
-        git: GitProvider,
-        manifestRef: string = 'main',
-        allowUpdate: boolean = false,
-    ): Promise<ResolvedAsset> {
-        const assetMeta = manifest.assets[entry.id];
+        const remoteAssets = await this.listRemote(url);
+        const assetMeta = remoteAssets.find(a => a.id === assetId);
         if (!assetMeta) {
-            throw new Error(`Asset "${entry.id}" not found in manifest.`);
+            throw new Error(`Asset ${assetId} not found in remote source.`);
         }
 
-        const versionMeta = assetMeta.versions[entry.version];
-        if (!versionMeta) {
-            throw new Error(`Version "${entry.version}" not found for asset "${entry.id}".`);
-        }
+        const target = this.getDefaultMapping(assetMeta.kind, assetId);
+        const args = ['install', `"${url}"`, `"${assetId}"`, `"${versionRange}"`, `--target`, `"${target}"`];
 
-        // --- Ref Resolution Strategy ---
-        // Priority: explicit ref on version > manifestRef (Dynamic Registry fallback)
-        // versionStrategy.template is only used when the version has an explicit ref prefix,
-        // NOT as a fallback — that would break the Dynamic Registry model where
-        // untagged versions live on main.
-        const effectiveRef = versionMeta.ref || manifestRef;
+        this.cli.run(args);
 
-        // Resolve ref to commit SHA
-        const commit = await git.resolveRef(effectiveRef);
-
-        // Check lockfile for cached result
-        const lockfile = this.lockfileManager.load();
-        const locked = this.lockfileManager.findAsset(lockfile, entry.id, entry.source);
-
-        const kind = assetMeta.kind;
-
-        if (locked && locked.version === entry.version && locked.commit === commit && !allowUpdate) {
-            // Already resolved at this exact commit. Check cache.
-            if (this.cacheManager.isCached(entry.source, entry.id, entry.version, kind, locked.sha256)) {
-                const cachedPath = this.cacheManager.getAssetPath(entry.source, entry.id, entry.version, kind);
-
-                // Ensure symlink is in place
-                if (entry.mapping) {
-                    this.workspaceMapper.createSymlink(cachedPath, entry.mapping, entry.id, kind);
+        // --- Workaround for arca-cli bug: local directory assets are not copied to cache ---
+        const isLocal = fs.existsSync(url) && fs.statSync(url).isDirectory();
+        if (isLocal && assetMeta.kind === 'skill') {
+            const freshInstalled = this.listInstalled();
+            const entry = freshInstalled.find(a => a.id === assetId);
+            if (entry && entry.mapping) {
+                const absTarget = path.isAbsolute(entry.mapping) ? entry.mapping : path.join(this.workspaceRoot, entry.mapping);
+                let symlinkExists = false;
+                try {
+                    symlinkExists = !!fs.lstatSync(absTarget);
+                } catch (e) {
+                    // ignore
                 }
 
-                return {
-                    id: entry.id,
-                    version: entry.version,
-                    source: entry.source,
-                    commit,
-                    sha256: locked.sha256,
-                    content: this.cacheManager.readFromCache(entry.source, entry.id, entry.version, kind) || '',
-                    cachePath: cachedPath,
-                    mapping: entry.mapping,
-                };
+                if (symlinkExists) {
+                    const lstat = fs.lstatSync(absTarget);
+                    if (lstat.isSymbolicLink()) {
+                        const cachePath = fs.readlinkSync(absTarget);
+
+                        let needsCopy = false;
+                        if (!fs.existsSync(cachePath)) {
+                            needsCopy = true;
+                        } else {
+                            // Check if it's an empty directory
+                            const stats = fs.statSync(cachePath);
+                            if (stats.isDirectory() && fs.readdirSync(cachePath).length === 0) {
+                                needsCopy = true;
+                            }
+                        }
+
+                        if (needsCopy) {
+                            // Symlink is broken or points to empty dir, arca didn't populate the cache dir
+
+                            let manifestSourcePath = assetId; // fallback
+                            try {
+                                const yamlData = yaml.load(fs.readFileSync(path.join(url, 'arca-manifest.yaml'), 'utf8')) as any;
+                                const verData = yamlData?.assets?.[assetId]?.versions?.[entry.version];
+                                if (verData?.path || verData?.Path) {
+                                    manifestSourcePath = verData.path || verData.Path;
+                                }
+                            } catch (e) { }
+
+                            const sourcePath = path.isAbsolute(manifestSourcePath) ? manifestSourcePath : path.join(url, manifestSourcePath);
+                            if (sourcePath && fs.existsSync(sourcePath)) {
+                                this.copyRecursiveSync(sourcePath, cachePath);
+                            }
+                        }
+                    }
+                }
             }
         }
 
-        let sha256: string;
-        let cachedPath: string;
-        let content: string = '';
-
-        if (kind === 'skill') {
-            // Fetch the whole directory for skills
-            const dirResult = await git.fetchDirectory(versionMeta.path, effectiveRef);
-
-            // Normalize path for searching SKILL.md
-            const skillFile = dirResult.files.find(f => f.path.toLowerCase() === 'skill.md');
-            if (!skillFile) {
-                throw new Error(`Skill "${entry.id}" is missing SKILL.md in ${versionMeta.path}`);
-            }
-            content = skillFile.content;
-
-            const cacheResult = this.cacheManager.writeDirectoryToCache(
-                entry.source, entry.id, entry.version, dirResult.files
-            );
-            cachedPath = cacheResult.dirPath;
-            sha256 = cacheResult.sha256;
-        } else {
-            // Fetch single file for prompts/instructions
-            const fileResult = await git.fetchFile(versionMeta.path, effectiveRef);
-            content = fileResult.content;
-            const cacheResult = this.cacheManager.writeToCache(
-                entry.source, entry.id, entry.version, fileResult.content
-            );
-            cachedPath = cacheResult.filePath;
-            sha256 = cacheResult.sha256;
-        }
-
-        // Integrity check against lockfile if exists
-        if (locked && locked.sha256 && locked.sha256 !== sha256 && !allowUpdate) {
-            throw new Error(
-                `Integrity mismatch for "${entry.id}@${entry.version}": ` +
-                `expected SHA-256 ${locked.sha256}, got ${sha256}. ` +
-                `This may indicate the content of the version changed in the source registry. ` +
-                `Run "PARCA: Install" again and choose "Replace" to accept the new content.`
-            );
-        }
-
-        // Update lockfile
-        const manifestHash = this.cacheManager.computeHashFromString(JSON.stringify(manifest));
-        const lockedEntry: ParcaLockedAsset = {
-            id: entry.id,
-            version: entry.version,
-            source: entry.source,
-            commit,
-            sha256,
-            manifestHash,
-            resolvedAt: new Date().toISOString(),
-        };
-        this.lockfileManager.save(this.lockfileManager.upsertAsset(lockfile, lockedEntry));
-
-        // Create symlink
-        if (entry.mapping) {
-            this.workspaceMapper.createSymlink(cachedPath, entry.mapping, entry.id, kind);
+        const freshInstalled = this.listInstalled();
+        const entry = freshInstalled.find(a => a.id === assetId);
+        if (!entry) {
+            throw new Error(`Installation completed but asset ${assetId} not found in config.`);
         }
 
         return {
             id: entry.id,
             version: entry.version,
             source: entry.source,
-            commit,
-            sha256,
-            content,
-            cachePath: cachedPath,
-            mapping: entry.mapping,
+            commit: 'local',
+            sha256: '',
+            content: '',
+            cachePath: '',
+            mapping: entry.mapping
         };
     }
 
-    private async createGitProvider(provider: 'github' | 'azure', url: string): Promise<GitProvider> {
-        // Import AuthProvider dynamically to avoid circular dependencies
-        const { AuthProvider } = await import('./authProvider');
-        const token = await AuthProvider.getToken(provider);
+    // ---- Resolve All ----
 
-        return new GitProvider({ provider, repoUrl: url, token });
+    /** Resolve all assets in .arca-assets.yaml, respecting the lockfile. */
+    async resolveAll(progress?: ResolveProgress): Promise<ResolvedAsset[]> {
+        const args = ['sync'];
+        this.cli.run(args);
+
+        const installed = this.listInstalled();
+        return installed.map(entry => ({
+            id: entry.id,
+            version: entry.version,
+            source: entry.source,
+            commit: 'local',
+            sha256: '',
+            content: '',
+            cachePath: '',
+            mapping: entry.mapping
+        }));
+    }
+
+    // ---- List Installed ----
+
+    /** Get the list of currently installed assets from .arca-assets.yaml. */
+    listInstalled(): ArcaAssetEntry[] {
+        const args = ['list', '--json'];
+        const result = this.cli.run(args);
+
+        const assets = Array.isArray(result) ? result : [];
+        return assets.map((a: any) => {
+            const id = a.ID || a.id;
+            const source = a.Source || a.source;
+            const version = a.Version || a.version;
+            const projections = a.Projections || a.projections || {};
+            const mapping = projections.default || Object.values(projections)[0] as string || '';
+
+            return { id, source, version, mapping };
+        });
     }
 
     private getDefaultMapping(kind: AssetKind, assetId: string): string {
@@ -317,9 +193,24 @@ export class AssetResolver {
             case 'instruction':
                 return `.github/instructions/${assetId}.instructions.md`;
             case 'skill':
-                return `.github/skills/${assetId}/SKILL.md`;
+                return `.github/skills/${assetId}`;
             default:
                 return `.github/prompts/${assetId}.md`;
+        }
+    }
+
+    private copyRecursiveSync(src: string, dest: string) {
+        if (!fs.existsSync(src)) return;
+
+        const stats = fs.statSync(src);
+        if (stats.isDirectory()) {
+            fs.mkdirSync(dest, { recursive: true });
+            fs.readdirSync(src).forEach((childItemName) => {
+                this.copyRecursiveSync(path.join(src, childItemName), path.join(dest, childItemName));
+            });
+        } else {
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            fs.copyFileSync(src, dest);
         }
     }
 }

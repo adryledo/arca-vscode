@@ -1,24 +1,23 @@
-# PARCA v0.0.1: Implementation Plan
+# ARCA v0.0.1: Implementation Plan
 
 ## Technical Stack & Rationale
 
 | Component | Stack | Reasoning |
 | :--- | :--- | :--- |
-| **Protocol Engine** | **TypeScript / Node.js** | Required for VS Code extension development. Shared logic between CLI and Extension. High developer velocity. |
-| **VS Code Extension** | **VS Code API** | The primary host for resolution, UI discovery, and workspace mapping. |
-| **CLI (parca)** | **Node.js (Executable)** | Lightweight wrapper around the Protocol Engine for CI/CD usage. |
+| **ARCA CLI** | **Go** | Standalone, high-performance, and portable. Handles core logic, caching, and projections. Zero runtime dependencies. |
+| **VS Code Extension** | **TS + ARCA CLI** | UI wrapper that invokes the Go binary. Ensures consistent behavior across IDEs. |
 
-> [!NOTE]
-> While Go or Rust would offer better single-binary portability for a global CLI, the **Node ecosystem** is the native environment for VS Code. To avoid complex cross-compiliation and dependency on external binaries, we will start with a Pure TypeScript implementation.
+> [!IMPORTANT]
+> The core protocol engine has been migrated from a TypeScript implementation to a **standalone Go CLI (ARCA)**. This allows the same logic to be used in VS Code, JetBrains, and CI/CD pipelines without duplication.
 
 ---
 
 ## Integration Strategy: Workspace Projection
 
-The user wants assets like prompts to work with existing IDE assistants (which scan `.github/prompts/` etc.) without waiting for those assistants to adopt the PARCA protocol.
+The user wants assets like prompts to work with existing IDE assistants (which scan `.github/prompts/` etc.) without waiting for those assistants to adopt the ARCA protocol.
 
 ### The "Mapping" Mechanism
-1.  **Resolve**: The Engine downloads the asset from the source to the Central Cache (`~/.parca-cache/`).
+1.  **Resolve**: The Engine downloads the asset from the source to the Central Cache (`~/.arca-cache/`).
 2.  **Projection**: The Engine creates a **symbolic link** from the cache to the workspace path (e.g., `.github/prompts/my-prompt.md`).
 3.  **Clean Git**: The Engine automatically adds the projected path to `.gitignore` to ensure symlinks aren't committed.
 
@@ -27,40 +26,41 @@ The user wants assets like prompts to work with existing IDE assistants (which s
 ## Phased Roadmap
 
 ### Phase 1: Protocol Prototype (Alpha)
-- [ ] **CLI Commands**:
-  - `parca list-remote <url> [--kind <type>]`: Lists available assets from any PARCA-compliant source repository. Valid types: `prompt`, `skill`, `instruction`.
-  - `parca install <url> <asset-id>`: 
-    - Fetches the manifest from `<url>`.
-    - Automatically adds the source to `.parca-assets.yaml` if missing.
-    - Adds the asset entry.
-    - **Calls `resolve` automatically.**
-  - `parca list`: Lists currently installed assets in the project workspace.
-  - `parca resolve`: Explicitly fetches manifests, downloads to cache, and refreshes symlinks.
-- [ ] **Core Engine**: Manifest fetching (GitHub/Azure REST APIs) and SemVer resolution.
-- [ ] **Workspace Mapper**: Symlink creation logic and `.gitignore` automation.
-- [ ] **Lockfile Implementation**: Generation and verification.
+- [x] **CLI Commands**:
+  - [x] `arca list-remote <url> [--kind <type>]`: Lists available assets from any ARCA-compliant source repository. Valid types: `prompt`, `skill`, `instruction`.
+  - [x] `arca install <url> <asset-id>`: 
+    - [x] Fetches the manifest from `<url>`.
+    - [x] Automatically adds the source to `.arca-assets.yaml` if missing.
+    - [x] Adds the asset entry.
+    - [x] **Calls `resolve` automatically.**
+  - [x] `arca list`: Lists currently installed assets in the project workspace.
+  - [x] `arca sync`: Explicitly fetches manifests, downloads to cache, and refreshes symlinks.
+- [x] **Core Engine**: Manifest fetching (GitHub/Azure REST APIs) and SemVer resolution.
+- [x] **Workspace Mapper**: Symlink creation logic and `.gitignore` automation.
+- [x] **Lockfile Implementation**: Generation and verification.
+- [x] **Standardization**: Moved from PARCA to ARCA naming.
 
-### Phase 2: VS Code User Experience & Source-Side Tooling
-- [ ] **Consumer UI Improvements**:
-  - [ ] **Version Picker**: Show dropdown of available versions during installation. <!-- COMPLETED IN CODE -->
+### Phase 2: VS Code Extension UI & Source-Side Tools
+- [/] **Consumer UI Improvements**:
+  - [x] **Version Picker**: Show dropdown of available versions during installation (Handled by `install` arg).
   - [ ] **Explorer View**: Tree view showing active assets and their mapping status.
-- [ ] **Source-Side Tooling (Maintainer)**:
-  - [ ] **`PARCA: Publish Asset Version`**: Command that helps maintainers:
-    - Auto-detect changes in assets.
-    - Propose SemVer increment.
-    - **Checkpointing**: Auto-fill the `ref` of the *previous* version with the current commit SHA to "freeze" it before adding the new rolling version.
-    - Automatically update `parca-manifest.yaml`.
-    - Stage changes for Git commit.
-  - [ ] **Manifest Scaffolding**: Command to initialize a Source Repository with a correct manifest.
-- [ ] **Diagnostics**: Red squiggles in `.parca-assets.yaml` for invalid versions or missing assets.
-- [ ] **Agent Skills Alignment**:
-  - Update default mapping for `skill` kind to `.agent/skills/${assetId}/SKILL.md`.
-  - Ensure compatibility with directory-based assets (recursive fetch for skills).
+- [x] **Source-Side Tooling (Maintainer)**:
+  - [x] **`arca publish`**: Command that helps maintainers:
+    - [x] Auto-detect changes in assets.
+    - [x] Propose SemVer increment.
+    - [x] **Checkpointing**: Auto-fill the `ref` of the *previous* version with the current commit SHA to "freeze" it before adding the new rolling version.
+    - [x] Automatically update `arca-manifest.yaml`.
+    - [ ] Stage changes for Git commit.
+  - [x] **Manifest Scaffolding**: Automatically creates manifest on first publish.
+- [ ] **Diagnostics**: Red squiggles in `.arca-assets.yaml` for invalid versions or missing assets.
+- [x] **Agent Skills Alignment**:
+  - [x] Update default mapping for `skill` kind to `.arca/assets/${source}/${assetId}`.
+  - [x] Ensure compatibility with directory-based assets (recursive fetch for skills).
 
 ### Phase 3: Robustness & Scaling
 - [ ] **Transitive Dependencies**: Graphic resolution.
-- [ ] **Universal Hashing**: LF-normalized SHA-256 for cross-platform lockfile consistency.
-- [ ] **Caching**: Intelligent eviction and multi-user machine cache.
+- [x] **Universal Hashing**: LF-normalized SHA-256 for cross-platform lockfile consistency.
+- [x] **Caching**: Machine-wide cache with deterministic path indexing.
 
 ### Phase 4: Expansion
 - [ ] **LM Tool Integration**: For assistants that support tool-calling.

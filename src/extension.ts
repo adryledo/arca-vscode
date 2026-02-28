@@ -1,5 +1,5 @@
 /**
- * PARCA - VS Code Extension Entrypoint
+ * ARCA - VS Code Extension Entrypoint
  * Registers all commands and the sidebar tree view.
  */
 import * as vscode from 'vscode';
@@ -12,11 +12,11 @@ let treeProvider: InstalledAssetsProvider;
 
 export function activate(context: vscode.ExtensionContext) {
     treeProvider = new InstalledAssetsProvider();
-    vscode.window.registerTreeDataProvider('parca.installedAssets', treeProvider);
+    vscode.window.registerTreeDataProvider('arca.installedAssets', treeProvider);
 
     // ---- List Remote ----
     context.subscriptions.push(
-        vscode.commands.registerCommand('parca.listRemote', async () => {
+        vscode.commands.registerCommand('arca.listRemote', async () => {
             const url = await vscode.window.showInputBox({
                 prompt: 'Enter the source repository URL',
                 placeHolder: 'https://github.com/my-org/agent-assets',
@@ -59,14 +59,14 @@ export function activate(context: vscode.ExtensionContext) {
                     }
                 }
             } catch (err: any) {
-                vscode.window.showErrorMessage(`PARCA: ${err.message}`);
+                vscode.window.showErrorMessage(`ARCA: ${err.message}`);
             }
         }),
     );
 
     // ---- Install ----
     context.subscriptions.push(
-        vscode.commands.registerCommand('parca.install', async () => {
+        vscode.commands.registerCommand('arca.install', async () => {
             const url = await vscode.window.showInputBox({
                 prompt: 'Enter the source repository URL',
                 placeHolder: 'https://github.com/my-org/agent-assets',
@@ -92,12 +92,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     // ---- List Installed ----
     context.subscriptions.push(
-        vscode.commands.registerCommand('parca.list', async () => {
+        vscode.commands.registerCommand('arca.list', async () => {
             const r = getResolver();
             const assets = r.listInstalled();
 
             if (assets.length === 0) {
-                vscode.window.showInformationMessage('No PARCA assets installed in this workspace.');
+                vscode.window.showInformationMessage('No ARCA assets installed in this workspace.');
                 return;
             }
 
@@ -107,17 +107,17 @@ export function activate(context: vscode.ExtensionContext) {
                 detail: a.mapping ? `→ ${a.mapping}` : undefined,
             }));
 
-            vscode.window.showQuickPick(items, { placeHolder: 'Installed PARCA assets' });
+            vscode.window.showQuickPick(items, { placeHolder: 'Installed ARCA assets' });
         }),
     );
 
     // ---- Resolve ----
     context.subscriptions.push(
-        vscode.commands.registerCommand('parca.resolve', async () => {
+        vscode.commands.registerCommand('arca.resolve', async () => {
             const r = getResolver();
 
             await vscode.window.withProgress(
-                { location: vscode.ProgressLocation.Notification, title: 'PARCA: Resolving assets...' },
+                { location: vscode.ProgressLocation.Notification, title: 'ARCA: Resolving assets...' },
                 async (progress) => {
                     try {
                         const results = await r.resolveAll({
@@ -125,14 +125,14 @@ export function activate(context: vscode.ExtensionContext) {
                                 progress.report({ message: `${id}@${version}` });
                             },
                             onAssetError: (id, error) => {
-                                vscode.window.showWarningMessage(`PARCA: Failed to resolve ${id}: ${error}`);
+                                vscode.window.showWarningMessage(`ARCA: Failed to resolve ${id}: ${error}`);
                             },
                         });
 
                         treeProvider.refresh();
-                        vscode.window.showInformationMessage(`PARCA: Resolved ${results.length} asset(s).`);
+                        vscode.window.showInformationMessage(`ARCA: Resolved ${results.length} asset(s).`);
                     } catch (err: any) {
-                        vscode.window.showErrorMessage(`PARCA: ${err.message}`);
+                        vscode.window.showErrorMessage(`ARCA: ${err.message}`);
                     }
                 },
             );
@@ -141,7 +141,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     // ---- Publish (Maintainer) ----
     context.subscriptions.push(
-        vscode.commands.registerCommand('parca.publish', async () => {
+        vscode.commands.registerCommand('arca.publish', async () => {
             const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
             if (!workspaceRoot) {
                 vscode.window.showErrorMessage('No workspace folder open.');
@@ -153,12 +153,12 @@ export function activate(context: vscode.ExtensionContext) {
 
             if (!publisher.isSourceRepo()) {
                 const initChoice = await vscode.window.showWarningMessage(
-                    'This workspace is not a PARCA Source Repository. Initialize one?',
+                    'This workspace is not an ARCA Source Repository. Initialize one?',
                     'Yes', 'No'
                 );
                 if (initChoice === 'Yes') {
                     publisher.initManifest();
-                    vscode.window.showInformationMessage('Initialized parca-manifest.yaml.');
+                    vscode.window.showInformationMessage('Initialized arca-manifest.yaml.');
                 } else {
                     return;
                 }
@@ -229,14 +229,14 @@ export function activate(context: vscode.ExtensionContext) {
                 await publisher.publishVersion(manifest, assetId, version, filePath, kind);
                 vscode.window.showInformationMessage(`Successfully published ${assetId}@${version} to manifest.`);
             } catch (err: any) {
-                vscode.window.showErrorMessage(`PARCA: ${err.message}`);
+                vscode.window.showErrorMessage(`ARCA: ${err.message}`);
             }
         }),
     );
 
     // ---- Refresh Tree ----
     context.subscriptions.push(
-        vscode.commands.registerCommand('parca.refresh', () => {
+        vscode.commands.registerCommand('arca.refresh', () => {
             treeProvider.refresh();
         }),
     );
@@ -244,11 +244,11 @@ export function activate(context: vscode.ExtensionContext) {
     // Auto-resolve on activation if config exists
     const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
     if (workspaceRoot) {
-        const configPath = vscode.Uri.joinPath(vscode.Uri.file(workspaceRoot), '.parca-assets.yaml');
+        const configPath = vscode.Uri.joinPath(vscode.Uri.file(workspaceRoot), '.arca-assets.yaml');
         vscode.workspace.fs.stat(configPath).then(
             () => {
                 // Config exists — auto-resolve silently
-                vscode.commands.executeCommand('parca.resolve');
+                vscode.commands.executeCommand('arca.resolve');
             },
             () => { /* No config — do nothing */ },
         );
@@ -274,7 +274,7 @@ async function installAsset(url: string, assetId: string, versionRange: string =
     const r = getResolver();
 
     await vscode.window.withProgress(
-        { location: vscode.ProgressLocation.Notification, title: `PARCA: Installing ${assetId}@${versionRange}...` },
+        { location: vscode.ProgressLocation.Notification, title: `ARCA: Installing ${assetId}@${versionRange}...` },
         async () => {
             try {
                 const result = await r.install(url, assetId, versionRange);
@@ -293,7 +293,7 @@ async function installAsset(url: string, assetId: string, versionRange: string =
                         if ('id' in resolved) {
                             treeProvider.refresh();
                             vscode.window.showInformationMessage(
-                                `PARCA: Installed ${resolved.id}@${resolved.version} → ${resolved.mapping || resolved.cachePath}`,
+                                `ARCA: Installed ${resolved.id}@${resolved.version} → ${resolved.mapping || resolved.cachePath}`,
                             );
                         }
                     }
@@ -301,11 +301,11 @@ async function installAsset(url: string, assetId: string, versionRange: string =
                     // New installation succeeded
                     treeProvider.refresh();
                     vscode.window.showInformationMessage(
-                        `PARCA: Installed ${result.id}@${result.version} → ${result.mapping || result.cachePath}`,
+                        `ARCA: Installed ${result.id}@${result.version} → ${result.mapping || result.cachePath}`,
                     );
                 }
             } catch (err: any) {
-                vscode.window.showErrorMessage(`PARCA: ${err.message}`);
+                vscode.window.showErrorMessage(`ARCA: ${err.message}`);
             }
         },
     );

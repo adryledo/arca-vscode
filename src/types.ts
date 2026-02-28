@@ -1,5 +1,5 @@
 /**
- * PARCA - Protocol of Asset Resolution for Coding Agents
+ * ARCA - Protocol of Asset Resolution for Coding Agents
  * Core type definitions.
  */
 
@@ -7,62 +7,62 @@
 
 export type AssetKind = 'prompt' | 'skill' | 'instruction';
 
-// --- Consumer Config (.parca-assets.yaml) ---
+// --- Consumer Config (.arca-assets.yaml) ---
 
-export interface ParcaConfig {
+export interface ArcaConfig {
     schema: string;
-    sources: Record<string, ParcaSource>;
-    assets: ParcaAssetEntry[];
+    sources: Record<string, ArcaSource>;
+    assets: ArcaAssetEntry[];
 }
 
-export interface ParcaSource {
+export interface ArcaSource {
     type: 'git';
     provider: 'github' | 'azure';
     url: string;
 }
 
-export interface ParcaAssetEntry {
+export interface ArcaAssetEntry {
     id: string;
     source: string;
     version: string;
     mapping?: string;
 }
 
-// --- Source Manifest (parca-manifest.yaml) ---
+// --- Source Manifest (arca-manifest.yaml) ---
 
-export interface ParcaManifest {
+export interface ArcaManifest {
     schema: string;
     versionStrategy?: {
         template?: string;
     };
-    assets: Record<string, ParcaManifestAsset>;
+    assets: Record<string, ArcaManifestAsset>;
 }
 
-export interface ParcaManifestAsset {
+export interface ArcaManifestAsset {
     kind: AssetKind;
     description?: string;
-    versions: Record<string, ParcaManifestVersion>;
+    versions: Record<string, ArcaManifestVersion>;
 }
 
-export interface ParcaManifestVersion {
+export interface ArcaManifestVersion {
     ref?: string;
     path: string;
-    runtime?: ParcaRuntime;
+    runtime?: ArcaRuntime;
 }
 
-export interface ParcaRuntime {
+export interface ArcaRuntime {
     llm?: Array<{ provider: string; models: string[] }>;
     min_context_tokens?: number;
     requires_tools?: boolean;
 }
 
-// --- Lockfile (.parca-assets.lock) ---
+// --- Lockfile (.arca-assets.lock) ---
 
-export interface ParcaLockfile {
-    assets: ParcaLockedAsset[];
+export interface ArcaLockfile {
+    assets: ArcaLockedAsset[];
 }
 
-export interface ParcaLockedAsset {
+export interface ArcaLockedAsset {
     id: string;
     version: string;
     source: string;
@@ -93,5 +93,6 @@ export interface RemoteAssetInfo {
     description: string;
     latestVersion: string;
     versions: string[];
+    path?: string;
     resolvedCommit?: string; // The commit SHA where this version was discovered (added during resolution)
 }

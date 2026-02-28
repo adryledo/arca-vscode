@@ -1,16 +1,16 @@
 /**
- * PARCA - InstalledAssetsProvider
+ * ARCA - InstalledAssetsProvider
  * VS Code TreeDataProvider for the sidebar panel showing installed assets.
  */
 import * as vscode from 'vscode';
-import { ConfigLoader } from './configLoader';
-import { ParcaAssetEntry } from './types';
+import { AssetResolver } from './assetResolver';
+import { ArcaAssetEntry } from './types';
 
 export class InstalledAssetsProvider implements vscode.TreeDataProvider<AssetTreeItem> {
     private _onDidChangeTreeData = new vscode.EventEmitter<AssetTreeItem | undefined | void>();
     readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 
-    private configLoader: ConfigLoader | undefined;
+    private resolver: AssetResolver | undefined;
 
     constructor() {
         this.refreshWorkspace();
@@ -24,9 +24,9 @@ export class InstalledAssetsProvider implements vscode.TreeDataProvider<AssetTre
     private refreshWorkspace(): void {
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (workspaceRoot) {
-            this.configLoader = new ConfigLoader(workspaceRoot);
+            this.resolver = new AssetResolver(workspaceRoot);
         } else {
-            this.configLoader = undefined;
+            this.resolver = undefined;
         }
     }
 
@@ -35,11 +35,11 @@ export class InstalledAssetsProvider implements vscode.TreeDataProvider<AssetTre
     }
 
     getChildren(element?: AssetTreeItem): AssetTreeItem[] {
-        if (element || !this.configLoader) {
+        if (element || !this.resolver) {
             return [];
         }
 
-        const assets = this.configLoader.getInstalledAssets();
+        const assets = this.resolver.listInstalled();
         if (assets.length === 0) {
             return [new AssetTreeItem('No assets installed', '', '', 'none')];
         }

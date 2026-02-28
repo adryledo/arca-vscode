@@ -1,9 +1,9 @@
 {
-    "name": "parca",
-    "displayName": "PARCA - Agent Asset Manager",
+    "name": "arca",
+    "displayName": "ARCA - Agent Asset Manager",
     "description": "Protocol of Asset Resolution for Coding Agents. Manage versioned prompts, skills, and instructions from remote Git repositories.",
     "version": "0.1.0",
-    "publisher": "parca",
+    "publisher": "arca",
     "engines": {
         "vscode": "^1.85.0"
     },
@@ -11,55 +11,57 @@
     "scripts": {
         "vscode:prepublish": "tsc -p ./",
         "compile": "tsc -p ./",
-        "watch": "tsc -watch -p ./"
+        "watch": "tsc -watch -p ./",
+        "test": "mocha -r ts-node/register test/**/*.test.ts"
     },
     "categories": [
         "Other"
     ],
     "activationEvents": [
-        "workspaceContains:.parca-assets.yaml"
+        "workspaceContains:.arca-assets.yaml",
+        "onView:arca.installedAssets"
     ],
     "contributes": {
         "commands": [
             {
-                "command": "parca.listRemote",
-                "title": "PARCA: List Remote Assets"
+                "command": "arca.listRemote",
+                "title": "ARCA: List Remote Assets"
             },
             {
-                "command": "parca.install",
-                "title": "PARCA: Install Asset"
+                "command": "arca.install",
+                "title": "ARCA: Install Asset"
             },
             {
-                "command": "parca.list",
-                "title": "PARCA: List Installed Assets"
+                "command": "arca.list",
+                "title": "ARCA: List Installed Assets"
             },
             {
-                "command": "parca.resolve",
-                "title": "PARCA: Resolve Assets"
+                "command": "arca.resolve",
+                "title": "ARCA: Resolve Assets"
             },
             {
-                "command": "parca.publish",
-                "title": "PARCA: Publish Asset Version"
+                "command": "arca.publish",
+                "title": "ARCA: Publish Asset Version"
             },
             {
-                "command": "parca.refresh",
-                "title": "PARCA: Refresh",
+                "command": "arca.refresh",
+                "title": "ARCA: Refresh",
                 "icon": "$(refresh)"
             }
         ],
         "viewsContainers": {
             "activitybar": [
                 {
-                    "id": "parca",
-                    "title": "PARCA Assets",
+                    "id": "arca",
+                    "title": "ARCA Assets",
                     "icon": "$(package)"
                 }
             ]
         },
         "views": {
-            "parca": [
+            "arca": [
                 {
-                    "id": "parca.installedAssets",
+                    "id": "arca.installedAssets",
                     "name": "Installed Assets"
                 }
             ]
@@ -67,8 +69,8 @@
         "menus": {
             "view/title": [
                 {
-                    "command": "parca.refresh",
-                    "when": "view == parca.installedAssets",
+                    "command": "arca.refresh",
+                    "when": "view == arca.installedAssets",
                     "group": "navigation"
                 }
             ]
