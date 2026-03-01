@@ -1,6 +1,6 @@
 # ARCA v0.0.1: Formal Specification
 
-ARCA (Protocol of Asset Resolution for Coding Agents) is a decentralized standard for distributing, versioning, and consuming agentic assets (prompts, skills, instructions).
+ARCA (Protocol of Asset Resolution for Coding Agents) is a decentralized standard for distributing, versioning, and consuming agentic assets (skills, instructions).
 
 ## 1. Actors
 
@@ -26,7 +26,7 @@ version-strategy:
 
 assets:
   <asset-id>:
-    kind: prompt | skill | instruction
+    kind: skill | instruction
     description: "Brief description"
     versions:
       <version-string>:
@@ -50,7 +50,7 @@ assets:
   - id: refactor-logic # The unique ID within the source manifest
     source: my-org      # References the alias above
     version: "1.2.0"
-    mapping: ".github/prompts/refactor.md"
+    mapping: ".github/instructions/refactor.md"
 ```
 
 ### 2.3 CLI & Configuration Philosophy
@@ -97,7 +97,7 @@ sequenceDiagram
     E->>E: Normalize Encodings (LF) & Compute SHA-256
     E->>E: Compare with Lockfile (if exists)
     E->>C: Update `.arca-assets.lock`
-    E->>C: Project Files into Mapping locations (e.g. .github/prompts/)
+    E->>C: Project Files into Mapping locations (e.g. .github/instructions/)
 ```
 
 ## 4. Workspace Projection (Symlinks)
@@ -105,7 +105,7 @@ sequenceDiagram
 To support integration with existing IDE assistants (which scan `.github/prompts/` etc.):
 
 1.  **Central Cache**: All assets are downloaded to a machine-wide cache (e.g., `~/.arca-cache/`).
-2.  **Workspace Symlinking**: The Engine creates a **symbolic link** directly from the Central Cache to the location specified in `.arca-assets.yaml` (e.g., `.github/prompts/my-asset.md`).
+2.  **Workspace Symlinking**: The Engine creates a **symbolic link** directly from the Central Cache to the location specified in `.arca-assets.yaml` (e.g., `.github/instructions/my-asset.md`).
 3.  **No Redundancy**: This avoids duplicating files in every project and ensures the assistant always sees the versioned content.
 4.  **Automatic Ignoring**: The Engine automatically manages the `.gitignore` file to ensure symlinked assets are not committed to the Consumer Repository.
 
@@ -114,7 +114,7 @@ To support integration with existing IDE assistants (which scan `.github/prompts
 The ARCA protocol minimizes "Tag Fatigue" for maintainers by using the **Dynamic Registry** model.
 
 ### 6.1 The "Manual" Publish
-1.  **Edit**: Maintainer updates the asset file (e.g., `prompts/sql-expert.md`).
+1.  **Edit**: Maintainer updates the asset file (e.g., `instructions/sql-expert.md`).
 2.  **Declare**: Maintainer adds a new entry to `arca-manifest.yaml` with an incremented version number.
 3.  **Push**: Maintainer commits and pushes to `main`.
 4.  **Result**: The version is now "Live". Consumers who run `arca resolve` or `arca install` will find this version on the `main` branch manifest.

@@ -61,7 +61,7 @@ export class Publisher {
         assetId: string,
         version: string,
         filePath: string,
-        kind: AssetKind = 'prompt',
+        kind: AssetKind = 'instruction',
     ): Promise<void> {
         const args = ['publish', `"${assetId}"`, `"${version}"`, `"${kind}"`, `"${filePath}"`];
         this.cli.run(args);

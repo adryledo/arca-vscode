@@ -17,11 +17,11 @@ describe('Baseline Integration Test (CLI-based)', () => {
 schema: 1.0
 assets:
   test-asset:
-    kind: prompt
-    description: "Test prompt"
+    kind: instruction
+    description: "Test instruction"
     versions:
       1.0.0:
-        path: "prompts/test.md"
+        path: "instructions/test.md"
   test-skill:
     kind: skill
     description: "Test skill"
@@ -30,8 +30,8 @@ assets:
         path: "skills/test-skill"
 `, 'utf-8');
 
-    fs.mkdirSync(path.join(sourceDir, 'prompts'), { recursive: true });
-    fs.writeFileSync(path.join(sourceDir, 'prompts', 'test.md'), '# Hello Test');
+    fs.mkdirSync(path.join(sourceDir, 'instructions'), { recursive: true });
+    fs.writeFileSync(path.join(sourceDir, 'instructions', 'test.md'), '# Hello Test');
 
     fs.mkdirSync(path.join(sourceDir, 'skills', 'test-skill'), { recursive: true });
     fs.writeFileSync(path.join(sourceDir, 'skills', 'test-skill', 'SKILL.md'), '# Test Skill Content');
@@ -48,7 +48,7 @@ assets:
   it('should install an asset correctly via CLI', async () => {
     console.log('--- TEST: install asset ---');
     await resolver.install(sourceDir, 'test-asset', '1.0.0');
-    const mappingPath = path.join(testDir, '.github', 'prompts', 'test-asset.prompt.md');
+    const mappingPath = path.join(testDir, '.github', 'instructions', 'test-asset.instructions.md');
     assert.ok(fs.existsSync(mappingPath), `Mapping path should exist: ${mappingPath}`);
     assert.strictEqual(fs.readFileSync(mappingPath, 'utf-8').trim(), '# Hello Test');
   });
@@ -93,6 +93,6 @@ assets:
     const results = await resolver.resolveAll();
     console.log('Sync results:', JSON.stringify(results, null, 2));
     assert.strictEqual(results.length, 1);
-    assert.ok(fs.existsSync(path.join(testDir, '.github', 'prompts', 'test-asset.prompt.md')));
+    assert.ok(fs.existsSync(path.join(testDir, '.github', 'instructions', 'test-asset.instructions.md')));
   });
 });

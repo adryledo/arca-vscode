@@ -188,14 +188,12 @@ export class AssetResolver {
 
     private getDefaultMapping(kind: AssetKind, assetId: string): string {
         switch (kind) {
-            case 'prompt':
-                return `.github/prompts/${assetId}.prompt.md`;
             case 'instruction':
                 return `.github/instructions/${assetId}.instructions.md`;
             case 'skill':
                 return `.github/skills/${assetId}`;
             default:
-                return `.github/prompts/${assetId}.md`;
+                return `.github/instructions/${assetId}.md`;
         }
     }
 

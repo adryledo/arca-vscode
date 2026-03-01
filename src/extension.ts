@@ -24,7 +24,7 @@ export function activate(context: vscode.ExtensionContext) {
             if (!url) { return; }
 
             const kindChoice = await vscode.window.showQuickPick(
-                ['all', 'prompt', 'skill', 'instruction'],
+                ['all', 'skill', 'instruction'],
                 { placeHolder: 'Filter by asset type' },
             );
             const kindFilter = kindChoice === 'all' ? undefined : kindChoice as AssetKind | undefined;
@@ -168,7 +168,7 @@ export function activate(context: vscode.ExtensionContext) {
             const assetIds = Object.keys(manifest.assets);
 
             let assetId: string | undefined;
-            let kind: AssetKind = 'prompt';
+            let kind: AssetKind = 'instruction';
 
             if (assetIds.length > 0) {
                 const choice = await vscode.window.showQuickPick(
@@ -178,16 +178,16 @@ export function activate(context: vscode.ExtensionContext) {
                 if (!choice) { return; }
                 if (choice === '[ New Asset ]') {
                     assetId = await vscode.window.showInputBox({ prompt: 'Enter new asset ID' });
-                    const k = await vscode.window.showQuickPick(['prompt', 'skill', 'instruction'], { placeHolder: 'Select asset kind' });
-                    kind = (k || 'prompt') as AssetKind;
+                    const k = await vscode.window.showQuickPick(['skill', 'instruction'], { placeHolder: 'Select asset kind' });
+                    kind = (k || 'instruction') as AssetKind;
                 } else {
                     assetId = choice;
                     kind = manifest.assets[assetId].kind;
                 }
             } else {
                 assetId = await vscode.window.showInputBox({ prompt: 'Enter new asset ID' });
-                const k = await vscode.window.showQuickPick(['prompt', 'skill', 'instruction'], { placeHolder: 'Select asset kind' });
-                kind = (k || 'prompt') as AssetKind;
+                const k = await vscode.window.showQuickPick(['skill', 'instruction'], { placeHolder: 'Select asset kind' });
+                kind = (k || 'instruction') as AssetKind;
             }
 
             if (!assetId) { return; }
@@ -219,7 +219,7 @@ export function activate(context: vscode.ExtensionContext) {
             // Ask for file path relative to workspace
             const filePath = await vscode.window.showInputBox({
                 prompt: `Enter path to the asset file for ${assetId}@${version}`,
-                placeHolder: 'prompts/my-prompt.md',
+                placeHolder: 'instructions/my-instruction.md',
                 value: manifest.assets[assetId]?.versions[Object.keys(manifest.assets[assetId].versions)[0]]?.path || ''
             });
 

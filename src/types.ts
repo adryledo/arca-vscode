@@ -5,7 +5,7 @@
 
 // --- Asset Types ---
 
-export type AssetKind = 'prompt' | 'skill' | 'instruction';
+export type AssetKind = 'skill' | 'instruction';
 
 // --- Consumer Config (.arca-assets.yaml) ---
 

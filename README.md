@@ -1,11 +1,11 @@
 # ARCA v0.0.1 - Protocol of Asset Resolution for Coding Agents
 
-A decentralized standard for distributing, versioning, and consuming agentic assets (prompts, skills, instructions) across coding agents and IDEs.
+A decentralized standard for distributing, versioning, and consuming agentic assets (skills, instructions) across coding agents and IDEs.
 
 ## 🎯 Overview
 
 ARCA enables developers to:
-- **Discover** and install reusable assets (prompts, skills, instructions) from remote sources
+- **Discover** and install reusable assets (skills, instructions) from remote sources
 - **Version** assets with SemVer support and deterministic lockfiles
 - **Integrate** seamlessly with existing IDE assistants through workspace projection
 - **Manage** assets with zero Git tag overhead through a dynamic registry model
@@ -18,7 +18,7 @@ No complex tag management. No vendor lock-in. Just simple, decentralized asset d
 - 🔍 **Asset Discovery**: Browse available assets with `arca list-remote <url>`
 - 📦 **One-Command Installation**: `arca install <url> <asset-id>` handles everything
 - 🔒 **Deterministic Locking**: `.arca-assets.lock` ensures reproducibility across machines and time
-- 🔄 **Automatic Workspace Projection**: Assets are symlinked into IDE-friendly locations (e.g., `.github/prompts/`)
+- 🔄 **Automatic Workspace Projection**: Assets are symlinked into IDE-friendly locations (e.g., `.github/instructions/`)
 - 🛡️ **Integrity Verification**: LF-normalized SHA-256 validation across all platforms
 - 🔐 **Smart Authentication**: VS Code GitHub integration with fallback to environment variables
 
@@ -52,7 +52,7 @@ Download file to ~/.arca-cache/
     ↓
 Compute SHA-256 (LF-normalized)
     ↓
-Create symlink in workspace (e.g., .github/prompts/)
+Create symlink in workspace (e.g., .github/instructions/)
     ↓
 Update .arca-assets.lock for reproducibility
 ```
@@ -73,7 +73,7 @@ assets:
   - id: refactor-logic
     source: my-org
     version: "1.2.0"
-    mapping: ".github/prompts/refactor.md"
+    mapping: ".github/instructions/refactor.md"
 ```
 
 ### Source Manifest (`arca-manifest.yaml`)
@@ -85,11 +85,11 @@ version-strategy:
   template: "v{{version}}"
 assets:
   refactor-logic:
-    kind: prompt
+    kind: instruction
     description: "Refactoring assistance for complex logic"
     versions:
       1.2.0:
-        path: "prompts/refactor.md"
+        path: "instructions/refactor.md"
         ref: "v1.2.0"
 ```
 
@@ -126,7 +126,7 @@ npm install -g arca
 arca list-remote https://github.com/my-org/agent-assets
 
 # Install an asset
-arca install https://github.com/my-org/agent-assets my-prompt
+arca install https://github.com/my-org/agent-assets my-asset
 
 # List installed assets
 arca list
@@ -151,7 +151,7 @@ Assets are automatically projected into your workspace via symlinks:
 ```
 Consumer Repo
 ├── .github/
-│   └── prompts/
+│   └── instructions/
 │       └── refactor.md  → symlink → ~/.arca-cache/abc12345/refactor.md
 ├── .arca-assets.yaml
 ├── .arca-assets.lock
