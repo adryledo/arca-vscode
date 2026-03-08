@@ -1,6 +1,7 @@
-import { execSync } from 'child_process';
+import { execSync, execFileSync } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs';
+import * as vscode from 'vscode';
 
 export class CliRunner {
     private arcaPath: string;
@@ -10,16 +11,46 @@ export class CliRunner {
     }
 
     private getArcaExecutable(): string {
-        // In a production extension, this might be bundled or configured via settings
-        // For this migration, we check some common locations or look for it in arca-cli/bin
+        // 1. Check VSCode config
+        const config = vscode.workspace.getConfiguration('arca');
+        const customPath = config.get<string>('executablePath');
+        if (customPath && customPath !== 'arca') {
+            if (path.isAbsolute(customPath)) {
+                if (fs.existsSync(customPath)) {
+                    return customPath;
+                }
+            } else {
+                // Try workspace-relative path
+                const absPath = path.join(this.workspaceRoot, customPath);
+                if (fs.existsSync(absPath)) {
+                    return absPath;
+                }
+            }
+        }
+
+        // 2. Resolve common locations
         const locations = [
-            'c:\\Source\\VSCode Extensions\\arca-cli\\bin\\arca.exe', // TODO: Prompt to install arca if it is not found in the default location or VSCode settings
             path.join(this.workspaceRoot, '..', 'arca-cli', 'bin', 'arca.exe'),
             path.join(this.workspaceRoot, '..', 'arca-cli', 'bin', 'arca'),
-            'arca.exe',
-            'arca'
         ];
 
+        // 3. Special handling for WinGet on Windows
+        if (process.platform === 'win32' && process.env.LOCALAPPDATA) {
+            locations.push(path.join(process.env.LOCALAPPDATA, 'Microsoft', 'WinGet', 'Links', 'arca.exe'));
+        }
+
+        // 4. Try resolving from PATH using resolver
+        try {
+            const resolver = process.platform === 'win32' ? 'where' : 'which';
+            const resolved = execSync(`${resolver} arca`, { encoding: 'utf-8' }).split(/\r?\n/)[0].trim();
+            if (resolved && fs.existsSync(resolved)) {
+                return resolved;
+            }
+        } catch (e) {
+            // Not found via resolver
+        }
+
+        // 5. Check if any location exists
         for (const loc of locations) {
             try {
                 if (fs.existsSync(loc)) {
@@ -30,21 +61,20 @@ export class CliRunner {
             }
         }
 
-        return 'arca'; // Fallback to PATH
+        // Fallback to searching in PATH via execFileSync error handling later
+        return 'arca';
     }
 
     public run(args: string[]): any {
-        const cmd = `"${this.arcaPath}" ${args.join(' ')}`;
         try {
-            const output = execSync(cmd, {
+            const output = execFileSync(this.arcaPath, args, {
                 cwd: this.workspaceRoot,
                 encoding: 'utf-8',
                 stdio: ['ignore', 'pipe', 'pipe']
-            });
+            }) as string;
 
             if (args.includes('--json') || args.includes('-j')) {
                 try {
-                    // Try to extract JSON from output (in case there is leading text)
                     const jsonStart = output.indexOf('{');
                     const jsonStartArr = output.indexOf('[');
                     let start = -1;
@@ -66,9 +96,16 @@ export class CliRunner {
         } catch (err: any) {
             const stderr = err.stderr?.toString() || '';
             const stdout = err.stdout?.toString() || '';
-            const msg = `CLI Error: ${err.message}\nSTDOUT: ${stdout}\nSTDERR: ${stderr}`;
-            console.error(msg);
-            throw new Error(msg);
+
+            let userMsg = `ARCA: CLI Command failed: "${this.arcaPath} ${args.join(' ')}"\n\n`;
+            if (err.code === 'ENOENT') {
+                userMsg += `ERROR: The arca command was not found. If you have it installed, please configure its path in VSCode settings (arca.executablePath).\n`;
+            } else {
+                userMsg += `ERROR: ${err.message}\nSTDOUT: ${stdout}\nSTDERR: ${stderr}`;
+            }
+
+            console.error(userMsg);
+            throw new Error(userMsg);
         }
     }
 }

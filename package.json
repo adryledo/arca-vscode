@@ -18,8 +18,7 @@
         "Other"
     ],
     "activationEvents": [
-        "workspaceContains:.arca-assets.yaml",
-        "onView:arca.installedAssets"
+        "workspaceContains:.arca-assets.yaml"
     ],
     "contributes": {
         "commands": [
@@ -74,6 +73,16 @@
                     "group": "navigation"
                 }
             ]
+        },
+        "configuration": {
+            "title": "ARCA",
+            "properties": {
+                "arca.executablePath": {
+                    "type": "string",
+                    "default": "arca",
+                    "description": "Path to the arca CLI executable. Defaults to 'arca' (looking in PATH)."
+                }
+            }
         }
     },
     "dependencies": {

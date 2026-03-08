@@ -34,22 +34,35 @@ export class InstalledAssetsProvider implements vscode.TreeDataProvider<AssetTre
         return element;
     }
 
-    getChildren(element?: AssetTreeItem): AssetTreeItem[] {
+    getChildren(element?: AssetTreeItem): AssetTreeItem[] | Thenable<AssetTreeItem[]> {
         if (element || !this.resolver) {
             return [];
         }
 
-        const assets = this.resolver.listInstalled();
-        if (assets.length === 0) {
-            return [new AssetTreeItem('No assets installed', '', '', 'none')];
-        }
+        try {
+            const assets = this.resolver.listInstalled();
+            if (assets.length === 0) {
+                return [new AssetTreeItem('No assets installed', '', '', 'none')];
+            }
 
-        return assets.map(a => new AssetTreeItem(
-            a.id,
-            a.version,
-            a.source,
-            a.mapping || '',
-        ));
+            return assets.map(a => new AssetTreeItem(
+                a.id,
+                a.version,
+                a.source,
+                a.mapping || '',
+            ));
+        } catch (err: any) {
+            const item = new AssetTreeItem('Error loading assets', '', '', 'error');
+            item.description = 'Check ARCA installation';
+            item.tooltip = err.message;
+            item.iconPath = new vscode.ThemeIcon('error');
+            item.command = {
+                command: 'workbench.action.openSettings',
+                title: 'Open Settings',
+                arguments: ['arca.executablePath']
+            };
+            return [item];
+        }
     }
 }
 

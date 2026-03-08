@@ -23,7 +23,7 @@ export class AssetResolver {
 
     /** List assets from a remote source URL, optionally filtered by kind. */
     async listRemote(url: string, kindFilter?: AssetKind): Promise<RemoteAssetInfo[]> {
-        const args = ['list-remote', `"${url}"`, '--json'];
+        const args = ['list-remote', url, '--json'];
         const result = this.cli.run(args);
 
         let assets: RemoteAssetInfo[] = [];
@@ -73,7 +73,7 @@ export class AssetResolver {
         }
 
         const target = this.getDefaultMapping(assetMeta.kind, assetId);
-        const args = ['install', `"${url}"`, `"${assetId}"`, `"${versionRange}"`, `--target`, `"${target}"`];
+        const args = ['install', url, assetId, versionRange, '--target', target];
 
         this.cli.run(args);
 

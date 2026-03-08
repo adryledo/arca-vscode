@@ -114,11 +114,9 @@ Ensures reproducibility by pinning commit SHAs and content hashes:
 ## 🚀 Getting Started
 
 ### Installation
-```bash
-# Install the ARCA VS Code Extension from the Marketplace
-# Or use the CLI
-npm install -g arca
-```
+> Install the ARCA VS Code Extension from the Marketplace
+
+> Or use the [arca-cli](https://github.com/adryledo/arca-cli/blob/main/docs/getting-started.md#installation)
 
 ### For Consumers
 ```bash
@@ -136,13 +134,13 @@ arca resolve
 ```
 
 ### For Maintainers
-1. Create a `arca-manifest.yaml` in your asset repository
-2. Define your assets with versions and file paths
-3. Use the VS Code `ARCA: Publish Asset Version` command to:
+1. Use the VS Code `ARCA: Publish Asset Version` command to:
+   - Create a `arca-manifest.yaml` in your asset repository
+   - Define your assets with versions and file paths
    - Auto-increment SemVer
    - Checkpoint previous versions at their commit SHA
    - Update the manifest
-   - Stage changes for commit
+2. Stage changes for commit
 
 ## 🔄 Workspace Integration
 
